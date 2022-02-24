@@ -5,7 +5,7 @@ import torch.nn as nn
 
 class PredNet(nn.Module):
     """Implements the functionalities of the
-    predict network in the model arcticture
+    predict network in the model architecture
 
     Attributes
     ----------
@@ -76,11 +76,45 @@ class PredNet(nn.Module):
 
 
 class TransNet(nn.Module):
-    def __init__(self) -> None:
+    """Implements the functionalities of the
+    transcription network in the model architecture, where
+    the input is the speech features and projects it to high
+    level feature representation.
+
+    Attributes
+    ----------
+    lstm : nn.Module
+        The network's RNN layer
+    """
+    def __init__(
+            self,
+            input_size: int,
+            hidden_size: int,
+            n_layers: int,
+            dropout: float,
+            is_bidirectional: bool
+            ) -> None:
+        """
+        Args:
+            input_size (int): The number of input features per time step,
+            hidden_size (int): The RNN's hidden layer size
+            n_layers (int): the number of stacked LSTM layers in the network
+            dropout (float): the dropout rate for each RNN layer
+            is_bidirectional (bool): if the RNN layers are bidirectional or not
+        """
         super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=n_layers,
+            batch_first=True,
+            dropout=dropout,
+            bidirectional=is_bidirectional
+        )
 
     def forward(self, x: Tensor) -> Tensor:
-        pass
+        out, *_ = self.lstm(x)
+        return out
 
 
 class JoinNet(nn.Module):
