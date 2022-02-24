@@ -1,5 +1,6 @@
 from typing import Tuple
 from torch import Tensor
+import torch
 import torch.nn as nn
 
 
@@ -118,11 +119,62 @@ class TransNet(nn.Module):
 
 
 class JoinNet(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
+    """Implements the functionalities of the
+    Join network in the model architecture, where
+    the inputs are high speech features at time tn and the prediction at step u
+    and predicts the next character or phi based on that, there are two
+    moods of operations additive and multiplicative mood.
 
-    def forward(self, x: Tensor) -> Tensor:
-        pass
+    Attributes
+    ----------
+    MOODES: dict
+        Maps the mode to a function
+    fc : nn.Module
+        The network's fully connected layer that maps the
+        features into vocabulary distribution
+    join_mood: Callable
+        The mood of operation
+    """
+    MODES = {
+        'multiplicative': lambda f, g: f * g,
+        'mul': lambda f, g: f * g,
+        'additive': lambda f, g: f + g,
+        'add': lambda f, g: f + g
+    }
+
+    def __init__(
+            self,
+            input_size: int,
+            vocab_size: int,
+            mode: str
+            ) -> None:
+        """
+        Args:
+            input_size (int): The dimension of each timesteps features
+            vocab_size (int): The number of vocabulary in the corpus
+            mode (str): The mode of operations, either mul
+            for multiplicative or add for additive
+        """
+        super().__init__()
+        self.join_mood = self.MODES[mode]
+        self.fc = nn.Linear(
+            in_features=input_size,
+            out_features=vocab_size
+        )
+
+    def forward(self, f: Tensor, g: Tensor) -> Tensor:
+        """performs forward propagation step
+
+        Args:
+            f (Tensor): The transcription vector at time t of shape (B, 1, h)
+            g (Tensor): The prediction vector at step u of shape (B, 1, h)
+
+        Returns:
+            Tensor: vocabulary distribution
+        """
+        out = self.join_mood(f, g)
+        out = self.fc(out)
+        return torch.softmax(out, dim=-1)
 
 
 class Model(nn.Module):
