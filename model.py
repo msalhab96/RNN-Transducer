@@ -60,6 +60,12 @@ class PredNet(nn.Module):
         out, (hn, cn) = self.lstm(out, (hn, cn))
         return out, hn, cn
 
+    def get_zeros_hidden_state(self, batch_size: int) -> Tuple[Tensor, Tensor]:
+        return (
+            torch.zeros((self.n_layers, batch_size, self.hidden_size)),
+            torch.zeros((self.n_layers, batch_size, self.hidden_size))
+        )
+
     def validate_dims(
             self,
             x: Tensor,
@@ -197,6 +203,8 @@ class Model(nn.Module):
         The index of phi symbol
     pad_idx: int
         The index of the padding symbol
+    sos_idx: int
+        The index of the start of sentence symbol
     """
     def __init__(
             self,
@@ -205,6 +213,7 @@ class Model(nn.Module):
             joinnet_params: dict,
             phi_idx: int,
             pad_idx: int,
+            sos_idx: int,
             device='cuda'
             ) -> None:
         super().__init__()
@@ -215,34 +224,65 @@ class Model(nn.Module):
         self.device = device
         self.phi_idx = phi_idx
         self.pad_idx = pad_idx
+        self.sos_idx = sos_idx
 
     def forward(
             self,
             x: Tensor,
+            max_length: int
             ) -> Tensor:
-        pass
+        # TODO: Code Refactoring and documentation
+        batch_size, T, *_ = x.shape
+        counter = self.get_counter_start(batch_size, T)
+        counter_ceil = counter + T - 1
+        term_state = torch.zeros(batch_size)
+        trans_result = self.feed_into_transnet(x)
+        # reshaping the results (B, T, F) -> (B * T, F)
+        trans_result = trans_result.reshape(batch_size * T, -1)
+        h, c = self.prednet.get_zeros_hidden_state(batch_size)
+        h = h.to(self.device)
+        c = c.to(self.device)
+        gu = self.get_sos_seed(batch_size)
+        t = 0
+        while True:
+            t += 1
+            out, h, c = self.prednet(gu, h, c)
+            fy = trans_result[counter, :].unsqueeze(dim=1)
+            preds = self.joinnet(fy, out)
+            if t == 1:
+                result = preds
+            else:
+                result = torch.concat([result, preds], dim=1)
+            gu = torch.argmax(preds, dim=-1)
+            counter += (gu.cpu() == self.phi_idx).squeeze()
+            counter, update_mask = self.clip_counter(counter, counter_ceil)
+            term_state = self.update_termination_state(
+                term_state, update_mask, t
+                )
+            if (update_mask.sum().item() == batch_size) or (max_length == t):
+                break
 
     def get_sos_seed(
-        self, batch_size: int, sos_idx: int
-        ) -> Tensor:
-        return torch.LongTensor([[sos_idx]] * batch_size)
+            self, batch_size: int
+            ) -> Tensor:
+        return torch.LongTensor([[self.sos_idx]] * batch_size).to(self.device)
 
     def feed_into_transnet(self, x: Tensor) -> Tensor:
         return self.transnet(x)
 
     def feed_into_prednet(
-        self, yu: Tensor, h: Tensor, c: Tensor
-        ) -> Tuple[Tensor, Tensor, Tensor]:
+            self, yu: Tensor, h: Tensor, c: Tensor
+            ) -> Tuple[Tensor, Tensor, Tensor]:
         return self.transnet(yu, h, c)
 
     def get_counter_start(
-        self, batch_size: int, max_size: int
-        ) -> Tensor:
+            self, batch_size: int, max_size: int
+            ) -> Tensor:
         return torch.arange(0, batch_size * max_size, max_size)
 
     def clip_counter(
-        self, counter: Tensor, ceil_vector: Tensor
-        ) -> Tuple[Tensor, Tensor]:
+            self, counter: Tensor, ceil_vector: Tensor
+            ) -> Tuple[Tensor, Tensor]:
         """Clips the counter to the ceil values,
         if the value at index i in the counter
         exceeded teh value at index i at the ceil_vector
@@ -274,10 +314,12 @@ class Model(nn.Module):
 
         Args:
             term_state (Tensor): The latest termination state of (N,) shape
-            where the value at index i eitehr 0 or number if 0 it's not terminated yet
-            otherwise the number indicates the latest position to consider
-            update_mask (Tensor): The update mask tensor resulted from the clip operation
-            last_index (int): The last index reached in the iteration loop
+            where the value at index i eitehr 0 or number if 0 it's not
+            terminated yet otherwise the number indicates the latest position
+            to consider.
+            update_mask (Tensor): The update mask tensor resulted from the
+            clip operation.
+            last_index (int): The last index reached in the iteration loop.
 
         Returns:
             Tensor: The updated term_state tensor
@@ -285,9 +327,3 @@ class Model(nn.Module):
         is_unended = term_state == 0
         to_update = is_unended & update_mask
         return term_state + to_update * last_index
-
-    def init_hidin_state(self, batch_size: int) -> Tuple[Tensor, Tensor]:
-        return (
-            torch.zeros((1, batch_size, self.prednet_hidden_size)),
-            torch.zeros((1, batch_size, self.prednet_hidden_size))
-        )
