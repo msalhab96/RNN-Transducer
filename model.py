@@ -178,8 +178,116 @@ class JoinNet(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self) -> None:
+    """Implements the full RNN-T model which consists of
+        - prediction network
+        - transcription network
+        - join network
+    Attributes
+    ----------
+    prednet : nn.Module
+        The prediction network
+    transnet: nn.Module
+        The transcrption network
+    joinnet: nn.Module
+        The join network
+    device: str
+        The device to do the operations on.
+        default to cuda.
+    phi_idx: int
+        The index of phi symbol
+    pad_idx: int
+        The index of the padding symbol
+    """
+    def __init__(
+            self,
+            prednet_params: dict,
+            transnet_params: dict,
+            joinnet_params: dict,
+            phi_idx: int,
+            pad_idx: int,
+            device='cuda'
+            ) -> None:
         super().__init__()
+        self.prednet = PredNet(**prednet_params).to(device)
+        self.transnet = TransNet(**transnet_params).to(device)
+        self.joinnet = JoinNet(**joinnet_params).to(device)
+        self.prednet_hidden_size = prednet_params['hidden_size']
+        self.device = device
+        self.phi_idx = phi_idx
+        self.pad_idx = pad_idx
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+            self,
+            x: Tensor,
+            ) -> Tensor:
         pass
+
+    def get_sos_seed(
+        self, batch_size: int, sos_idx: int
+        ) -> Tensor:
+        return torch.LongTensor([[sos_idx]] * batch_size)
+
+    def feed_into_transnet(self, x: Tensor) -> Tensor:
+        return self.transnet(x)
+
+    def feed_into_prednet(
+        self, yu: Tensor, h: Tensor, c: Tensor
+        ) -> Tuple[Tensor, Tensor, Tensor]:
+        return self.transnet(yu, h, c)
+
+    def get_counter_start(
+        self, batch_size: int, max_size: int
+        ) -> Tensor:
+        return torch.arange(0, batch_size * max_size, max_size)
+
+    def clip_counter(
+        self, counter: Tensor, ceil_vector: Tensor
+        ) -> Tuple[Tensor, Tensor]:
+        """Clips the counter to the ceil values,
+        if the value at index i in the counter
+        exceeded teh value at index i at the ceil_vector
+        it will be assigned to the ceil_vector[i]
+
+        Args:
+            counter (Tensor): The counter vector to be updated
+            ceil_vector (Tensor): The maximum value at each index of the
+                counter values
+
+        Returns:
+            Tuple[Tensor, Tensor]: A tuple of the updated counter
+            and a boolean tensor where indicates where the values
+            are exceeded the limit
+        """
+        update_mask = counter >= ceil_vector
+        upper_bounded = update_mask * ceil_vector
+        kept_counts = (counter < ceil_vector) * counter
+        return upper_bounded + kept_counts, update_mask
+
+    def update_termination_state(
+            self,
+            term_state: Tensor,
+            update_mask: Tensor,
+            last_index: int
+            ) -> Tensor:
+        """Updates the termination state, where the
+        it stores if an example m reached the end of transcription or not
+
+        Args:
+            term_state (Tensor): The latest termination state of (N,) shape
+            where the value at index i eitehr 0 or number if 0 it's not terminated yet
+            otherwise the number indicates the latest position to consider
+            update_mask (Tensor): The update mask tensor resulted from the clip operation
+            last_index (int): The last index reached in the iteration loop
+
+        Returns:
+            Tensor: The updated term_state tensor
+        """
+        is_unended = term_state == 0
+        to_update = is_unended & update_mask
+        return term_state + to_update * last_index
+
+    def init_hidin_state(self, batch_size: int) -> Tuple[Tensor, Tensor]:
+        return (
+            torch.zeros((1, batch_size, self.prednet_hidden_size)),
+            torch.zeros((1, batch_size, self.prednet_hidden_size))
+        )
