@@ -234,7 +234,7 @@ class Model(nn.Module):
         # TODO: Code Refactoring and documentation
         batch_size, T, *_ = x.shape
         counter = self.get_counter_start(batch_size, T)
-        counter_ceil = counter + T - 1
+        counter_ceil = self.get_counter_ceil(counter, T)
         term_state = torch.zeros(batch_size)
         trans_result = self.feed_into_transnet(x)
         # reshaping the results (B, T, F) -> (B * T, F)
@@ -262,6 +262,11 @@ class Model(nn.Module):
             if (update_mask.sum().item() == batch_size) or (max_length == t):
                 break
         return result, term_state
+
+    def get_counter_ceil(
+            self, counter: Tensor, T: int
+            ) -> Tensor:
+        return counter + T - 1
 
     def get_sos_seed(
             self, batch_size: int
