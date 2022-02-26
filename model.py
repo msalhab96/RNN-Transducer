@@ -232,6 +232,7 @@ class Model(nn.Module):
             max_length: int
             ) -> Tensor:
         # TODO: Code Refactoring and documentation
+        # FIX: feeding phis to the predict network
         batch_size, T, *_ = x.shape
         counter = self.get_counter_start(batch_size, T)
         counter_ceil = self.get_counter_ceil(counter, T)
@@ -251,13 +252,28 @@ class Model(nn.Module):
                 result = preds
             else:
                 result = torch.concat([result, preds], dim=1)
-            gu = torch.argmax(preds, dim=-1)
+            gu = self.keep_last_char(gu, torch.argmax(preds, dim=-1))
             counter, update_mask, term_state = self.update_states(
                 gu, counter, counter_ceil, term_state, t
                 )
             if (update_mask.sum().item() == batch_size) or (max_length == t):
                 break
         return result, term_state
+
+    def keep_last_char(self, gu: Tensor, preds: Tensor) -> Tensor:
+        """Keeps the characters only in the gu Tensors, where the phis get
+        neglected to not be passed to the prednet.
+
+        Args:
+            gu (Tensor): The u-1 predicted chars.
+            preds (Tensor): The latest predicted chars.
+
+        Returns:
+            Tensor: Updated gu where the character are kept, and the phis in
+            preds are replaced with the chars from gu.
+        """
+        is_phi = preds == self.phi_idx
+        return (is_phi * gu) + (~is_phi * preds)
 
     def update_states(
             self,
