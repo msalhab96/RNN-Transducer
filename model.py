@@ -246,9 +246,7 @@ class Model(nn.Module):
         t = 0
         while True:
             t += 1
-            out, h, c = self.prednet(gu, h, c)
-            fy = trans_result[counter, :].unsqueeze(dim=1)
-            preds = self.joinnet(fy, out)
+            preds, h, c = self.predict_next(gu, h, c, counter, trans_result)
             if t == 1:
                 result = preds
             else:
@@ -262,6 +260,34 @@ class Model(nn.Module):
             if (update_mask.sum().item() == batch_size) or (max_length == t):
                 break
         return result, term_state
+
+    def predict_next(
+            self, 
+            gu: Tensor,
+            h: Tensor,
+            c: Tensor,
+            counter: Tensor,
+            trans_result: Tensor
+            ) -> Tuple[Tensor, Tensor, Tensor]:
+        """Does a single prediction over time
+
+        Args:
+            gu (Tensor): The latest character predicted 
+            h (Tensor): The latest hidden states out of 
+            the prediction network
+            c (Tensor): The latest cell state out of the prediction network
+            counter (Tensor): The counter vector that tracks the pointers over 
+            the time frames 
+            trans_result (Tensor): The frames out of the Transcription network
+
+        Returns:
+            Tuple[Tensor, Tensor, Tensor]: A tuple of the prediction, hidden 
+            state and cell state
+        """
+        out, h, c = self.prednet(gu, h, c)
+        fy = trans_result[counter, :].unsqueeze(dim=1)
+        preds = self.joinnet(fy, out)
+        return preds, h, c
 
     def get_counter_ceil(
             self, counter: Tensor, T: int
