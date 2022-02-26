@@ -252,17 +252,46 @@ class Model(nn.Module):
             else:
                 result = torch.concat([result, preds], dim=1)
             gu = torch.argmax(preds, dim=-1)
-            counter += (gu.cpu() == self.phi_idx).squeeze()
-            counter, update_mask = self.clip_counter(counter, counter_ceil)
-            term_state = self.update_termination_state(
-                term_state, update_mask, t
+            counter, update_mask, term_state = self.update_states(
+                gu, counter, counter_ceil, term_state, t
                 )
             if (update_mask.sum().item() == batch_size) or (max_length == t):
                 break
         return result, term_state
 
+    def update_states(
+            self,
+            gu: Tensor,
+            counter: Tensor,
+            counter_ceil: Tensor,
+            term_state: Tensor,
+            t: int
+            ) -> Tuple[Tensor, Tensor, Tensor]:
+        """Updates the positional related tensors, these positionals store
+        the state of the pointers and these are teh counter and the term_state
+        tensors
+
+        Args:
+            gu (Tensor): The latest predicted characters
+            counter (Tensor): The counter tensor
+            counter_ceil (Tensor): the counter ceil that store the limit of
+            the pointers.
+            term_state (Tensor): The terminate state that stores where the
+            results end.
+            t (int): The latest time step
+
+        Returns:
+            Tuple[Tensor, Tensor, Tensor]: A tuple of the updated states
+        """
+        counter += (gu.cpu() == self.phi_idx).squeeze()
+        counter, update_mask = self.clip_counter(counter, counter_ceil)
+        term_state = self.update_termination_state(
+            term_state, update_mask, t
+            )
+        return counter, update_mask, term_state
+
     def predict_next(
-            self, 
+            self,
             gu: Tensor,
             h: Tensor,
             c: Tensor,
@@ -272,16 +301,16 @@ class Model(nn.Module):
         """Does a single prediction over time
 
         Args:
-            gu (Tensor): The latest character predicted 
-            h (Tensor): The latest hidden states out of 
+            gu (Tensor): The latest character predicted
+            h (Tensor): The latest hidden states out of
             the prediction network
             c (Tensor): The latest cell state out of the prediction network
-            counter (Tensor): The counter vector that tracks the pointers over 
-            the time frames 
+            counter (Tensor): The counter vector that tracks the pointers over
+            the time frames
             trans_result (Tensor): The frames out of the Transcription network
 
         Returns:
-            Tuple[Tensor, Tensor, Tensor]: A tuple of the prediction, hidden 
+            Tuple[Tensor, Tensor, Tensor]: A tuple of the prediction, hidden
             state and cell state
         """
         out, h, c = self.prednet(gu, h, c)
