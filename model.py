@@ -261,6 +261,7 @@ class Model(nn.Module):
                 )
             if (update_mask.sum().item() == batch_size) or (max_length == t):
                 break
+        return result, term_state
 
     def get_sos_seed(
             self, batch_size: int
