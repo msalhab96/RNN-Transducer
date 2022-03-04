@@ -85,16 +85,19 @@ class Loss(nn.Module):
         """
         if p == 0:
             chars_probs = self.get_chars_probs(probs, target, c, p)
-            scores[:, c, p] = self.log(chars_probs) + scores[:, c - 1, p]
+            scores[:, c, p] = chars_probs + scores[:, c - 1, p]
             return scores
         elif c == 0:
             phi_probs = self.get_phi_probs(probs, c, p)
-            scores[:, c, p] = self.log(phi_probs) + scores[:, c, p - 1]
+            scores[:, c, p] = phi_probs + scores[:, c, p - 1]
             return scores
         chars_probs = self.get_chars_probs(probs, target, c, p)
         phi_probs = self.get_phi_probs(probs, c, p)
-        scores[:, c, p] = scores[:, c, p - 1] + self.log(phi_probs)
-        scores[:, c, p] += scores[:, c - 1, p] + self.log(chars_probs)
+        scores[:, c, p] = torch.logsumexp(
+            torch.stack(
+                [scores[:, c, p - 1] + self.log(phi_probs),
+                scores[:, c - 1, p] + self.log(chars_probs)]
+            ), dim=0)
         return scores
 
     def get_phi_probs(self, probs: Tensor, c: int, p: int) -> Tensor:
@@ -106,6 +109,3 @@ class Loss(nn.Module):
         all_seqs = probs[:, p + c - 1]
         result = torch.index_select(all_seqs, dim=-1, index=target[:, c - 1])
         return torch.diagonal(result)
-
-    def log(self, input: Tensor) -> Tensor:
-        return torch.log(self.eps + input)
