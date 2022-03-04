@@ -2,6 +2,9 @@
 
 This is a PyTorch implementation of [Sequence Transduction with Recurrent Neural Networks](https://arxiv.org/pdf/1211.3711.pdf) speech recognition paper 
 
+![RNN-T](https://user-images.githubusercontent.com/61272193/156832630-ad0c7d31-b262-470e-9b88-77088adf90ff.png)
+
+*Image Source: [Here](https://hackaday.io/project/164399/gallery#c1bc540f177e5c5f87194fe6012e7b20)*
 ```
 @article{DBLP:journals/corr/abs-1211-3711,
   author    = {Alex Graves},
