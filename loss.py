@@ -4,22 +4,25 @@ from torch import Tensor
 
 
 class Loss(nn.Module):
-    def __init__(self, phi_idx: int, eps: float) -> None:
+    def __init__(self, phi_idx: int, eps: float, device='cuda') -> None:
         super().__init__()
         self.phi_idx = phi_idx
         self.eps = eps
+        self.device = device
 
     def forward(
             self,
             probs: Tensor,
             target: Tensor,
-            target_lengths: Tensor,
+            target_lengths: Tensor
             ) -> Tensor:
+        target_lengths = target_lengths.to(self.device)
         batch_size, max_length, *_ = probs.shape
-        n_chars = target.shape[1]
+        n_chars = target_lengths.max().item()
         n_nulls = max_length - n_chars
         # initializing the scores matrix
         scores = self.get_score_matrix(batch_size, n_chars, n_nulls)
+        scores = scores.to(self.device)
         # going over all possible alignment paths
         for c in range(n_chars + 1):
             for p in range(n_nulls + 1):
@@ -44,7 +47,7 @@ class Loss(nn.Module):
         loss = torch.diagonal(torch.index_select(
             scores[:, :, -1], dim=1, index=target_lengths
             ))
-        loss *= -1
+        loss = -1 * loss
         return loss.mean()
 
     def get_score_matrix(
