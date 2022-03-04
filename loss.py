@@ -31,3 +31,6 @@ class Loss(nn.Module):
         all_seqs = probs[:, p + c - 1]
         result = torch.index_select(all_seqs, dim=-1, index=target[:, c - 1])
         return result[0, :]
+
+    def log(self, input: Tensor) -> Tensor:
+        return torch.log(self.eps + input)
