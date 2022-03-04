@@ -13,6 +13,7 @@ from utils import save_json
 from functools import wraps
 
 OOV = '<OOV>'
+PHI = '_'
 SOS = '<SOS>'
 EOS = '<EOS>'
 PAD = '<PAD>'
@@ -40,6 +41,7 @@ class SpecialTokens:
     _pad: Tuple[str, int] = (None, None)
     _sos: Tuple[str, int] = (None, None)
     _eos: Tuple[str, int] = (None, None)
+    _phi: Tuple[str, int] = (None, None)
 
     @property
     def oov_id(self):
@@ -81,6 +83,13 @@ class SpecialTokens:
     def mask_token(self):
         return self._mask[0]
 
+    @property
+    def phi_id(self):
+        return self._phi[1]
+
+    @property
+    def phi_token(self):
+        return self._phi[0]
 
 class ITokenizer(ABC):
 
@@ -130,6 +139,7 @@ class BaseTokenizer(ITokenizer):
     _sos_key = 'sos'
     _eos_key = 'eos'
     _pad_key = 'pad'
+    _phi_key = 'phi'
     _token_to_id_key = 'token_to_id'
     _special_tokens_key = 'special_tokens'
 
@@ -173,6 +183,12 @@ class BaseTokenizer(ITokenizer):
         self.special_tokens._eos = (token, token_id)
         return self
 
+    @check_token(PHI)
+    def add_phi_token(self, token=PHI) -> ITokenizer:
+        token_id = self.add_token(token)
+        self.special_tokens._phi = (token, token_id)
+        return self
+
     def _reset_id_to_token(self) -> None:
         self._id_to_token = dict(zip(
             self._token_to_id.values(),
@@ -188,6 +204,8 @@ class BaseTokenizer(ITokenizer):
             self.special_tokens._sos = tuple(data[self._sos_key])
         if self._eos_key in data:
             self.special_tokens._eos = tuple(data[self._eos_key])
+        if self._phi_key in data:
+            self.special_tokens._phi = tuple(data[self._phi_key])
 
     def __get_special_tokens_dict(self) -> dict:
         data = {}
@@ -199,6 +217,8 @@ class BaseTokenizer(ITokenizer):
             data[self._sos_key] = list(self.special_tokens._sos)
         if self.special_tokens.eos_id is not None:
             data[self._eos_key] = list(self.special_tokens._eos)
+        if self.special_tokens.phi_id is not None:
+            data[self._phi_key] = list(self.special_tokens._phi)
         return data
 
     def load_tokenizer(
