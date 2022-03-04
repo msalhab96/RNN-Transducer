@@ -1,9 +1,35 @@
 checkpoint: null
 device: 'cuda'
+length_multiplier: 1.05
 
 tokenizer:
   tokenizer_file: null
   vocab_path: 'files/vocab.txt'
+
+data:
+  sampling_rate: 16000
+  n_mel_channels: 40
+  hop_length: 200
+  n_ftt: 400
+  training_file: 'files/train.csv'
+  testing_file: 'files/test.csv'
+  max_str_len: 250
+  descending_order: False
+  sep: '|'
+  csv_file_keys:
+    duration: 'duration'
+    path: 'path'
+    text: 'text'
+
+
+training:
+  checkpoints_dir: 'checkpoints'
+  batch_size: 8
+  optimizer: 'sgd'
+  epochs: 200
+  optim:
+    learning_rate: 0.01
+    momentum: 0.9
 
 model:
   pred_net:
