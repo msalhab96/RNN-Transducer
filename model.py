@@ -299,7 +299,7 @@ class Model(nn.Module):
         Returns:
             Tuple[Tensor, Tensor, Tensor]: A tuple of the updated states
         """
-        counter += (gu.cpu() == self.phi_idx).squeeze()
+        counter = counter + ((gu.cpu() == self.phi_idx).squeeze())
         counter, update_mask = self.clip_counter(counter, counter_ceil)
         term_state = self.update_termination_state(
             term_state, update_mask, t
