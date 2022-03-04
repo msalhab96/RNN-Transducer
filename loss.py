@@ -41,9 +41,9 @@ class Loss(nn.Module):
             Tensor: The loss
         """
         # should we normalize by the number of paths ?
-        loss = torch.index_select(
+        loss = torch.diagonal(torch.index_select(
             scores[:, :, -1], dim=1, index=target_lengths
-            )[0, :]
+            ))
         loss *= -1
         return loss.mean()
 
@@ -102,7 +102,7 @@ class Loss(nn.Module):
             ) -> Tensor:
         all_seqs = probs[:, p + c - 1]
         result = torch.index_select(all_seqs, dim=-1, index=target[:, c - 1])
-        return result[0, :]
+        return torch.diagonal(result)
 
     def log(self, input: Tensor) -> Tensor:
         return torch.log(self.eps + input)
