@@ -4,10 +4,9 @@ from torch import Tensor
 
 
 class Loss(nn.Module):
-    def __init__(self, phi_idx: int, eps: float, device='cuda') -> None:
+    def __init__(self, phi_idx: int, device='cuda') -> None:
         super().__init__()
         self.phi_idx = phi_idx
-        self.eps = eps
         self.device = device
 
     def forward(
